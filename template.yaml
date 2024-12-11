@@ -27,6 +27,9 @@ Resources:
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                   - "sns:Publish"
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
                 Resource: "*"
 
   LambdaFunction:
@@ -37,13 +40,20 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: "nodejs18.x"
       Code:
-        S3Bucket: !Ref S3BucketName
-        S3Key: "lambda-code.zip"
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: lambda-code.zip
       Environment:
         Variables: {}
       Tags:
         - Key: "Project"
           Value: "Alertify-Inc"
+
+  SQSEventSourceMapping:
+    Type: "AWS::Lambda::EventSourceMapping"
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt SQSQueue.Arn
+      FunctionName: !GetAtt LambdaFunction.Arn
 
   SQSQueue:
     Type: "AWS::SQS::Queue"
@@ -55,14 +65,7 @@ Resources:
     Properties:
       TopicName: "Alertify-Inc-CriticalEvents-Unique"
 
-  SQSSubscription:
-    Type: "AWS::SNS::Subscription"
-    Properties:
-      Protocol: "sqs"
-      Endpoint: !GetAtt SQSQueue.Arn
-      TopicArn: !Ref SNSTopic
-
-  S3BucketName:
+  LambdaCodeBucket:
     Type: "AWS::S3::Bucket"
     Properties:
       BucketName: "alertify-lambda-code-bucket-unique"
