@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'CloudFormation Template para el Sistema de Notificaciones Alertify'
+Description: 'CloudFormation Template para el Sistema de Notificaciones Alertify Inc'
 
 Resources:
   LambdaExecutionRole:
