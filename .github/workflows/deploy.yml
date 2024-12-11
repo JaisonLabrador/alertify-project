@@ -38,6 +38,17 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Create a ZIP of the Lambda code
+        run: |
+          zip -r lambda-code.zip .
+
+      - name: Update Lambda function code
+        run: |
+          aws lambda update-function-code \
+            --function-name Alertify-Inc-ProcessEvents-Unique \
+            --zip-file fileb://lambda-code.zip \
+            --region ${{ secrets.AWS_REGION }}
+
       - name: Deploy to AWS CloudFormation
         run: |
           aws cloudformation deploy \
@@ -46,8 +57,12 @@ jobs:
             --capabilities CAPABILITY_IAM \
             --region ${{ secrets.AWS_REGION }}
 
-      - name: Notify success
-        if: success()
+  notify_success:
+    runs-on: ubuntu-latest
+    if: success()
+    needs: deploy
+    steps:
+      - name: Send success email notification
         run: |
           curl -X POST "https://api.sendgrid.com/v3/mail/send" \
             -H "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
@@ -55,15 +70,16 @@ jobs:
             -d '{
                   "personalizations": [{"to": [{"email": "${{ secrets.TO_EMAIL }}"}]}],
                   "from": {"email": "${{ secrets.FROM_EMAIL }}"},
-                  "subject": "Deployment Success - Alertify Project",
-                  "content": [{"type": "text/plain", "value": "The deployment to production was successful for the Alertify Project!"}]
+                  "subject": "Deployment Successful - Alertify",
+                  "content": [{"type": "text/plain", "value": "El despliegue fue exitoso en Alertify Inc."}]
                 }'
 
   notify_failure:
     runs-on: ubuntu-latest
     if: failure()
+    needs: deploy
     steps:
-      - name: Send email notification on failure
+      - name: Send failure email notification
         run: |
           curl -X POST "https://api.sendgrid.com/v3/mail/send" \
             -H "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
@@ -71,6 +87,6 @@ jobs:
             -d '{
                   "personalizations": [{"to": [{"email": "${{ secrets.TO_EMAIL }}"}]}],
                   "from": {"email": "${{ secrets.FROM_EMAIL }}"},
-                  "subject": "GitHub Actions Failure - Alertify Project",
-                  "content": [{"type": "text/plain", "value": "The GitHub Actions pipeline failed during the deployment of the Alertify Project."}]
+                  "subject": "Deployment Failed - Alertify",
+                  "content": [{"type": "text/plain", "value": "El pipeline falló durante el despliegue de Alertify Inc."}]
                 }'
