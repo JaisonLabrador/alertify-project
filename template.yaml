@@ -1,71 +1,88 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: 'CloudFormation Template para el Sistema de Notificaciones Alertify'
+name: Deploy to AWS
 
-Resources:
-  LambdaExecutionRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: "Allow"
-            Principal:
-              Service:
-                - "lambda.amazonaws.com"
-            Action: "sts:AssumeRole"
-      Policies:
-        - PolicyName: "LambdaExecutionPolicy"
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action:
-                  - "logs:CreateLogGroup"
-                  - "logs:CreateLogStream"
-                  - "logs:PutLogEvents"
-                  - "sqs:ReceiveMessage"
-                  - "sqs:DeleteMessage"
-                  - "sqs:GetQueueAttributes"
-                  - "sns:Publish"
-                  - "s3:PutObject"
-                  - "s3:GetObject"
-                  - "s3:ListBucket"
-                Resource: "*"
+on:
+  push:
+    branches:
+      - main
 
-  LambdaFunction:
-    Type: "AWS::Lambda::Function"
-    Properties:
-      FunctionName: "Alertify-Inc-ProcessEvents-Unique"
-      Handler: "index.handler"
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: "nodejs18.x"
-      Code:
-        S3Bucket: !Ref LambdaCodeBucket
-        S3Key: lambda-code.zip
-      Environment:
-        Variables: {}
-      Tags:
-        - Key: "Project"
-          Value: "Alertify-Inc"
+jobs:
+  test:
+    runs-on: ubuntu-latest
 
-  SQSEventSourceMapping:
-    Type: "AWS::Lambda::EventSourceMapping"
-    Properties:
-      BatchSize: 10
-      EventSourceArn: !GetAtt SQSQueue.Arn
-      FunctionName: !GetAtt LambdaFunction.Arn
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-  SQSQueue:
-    Type: "AWS::SQS::Queue"
-    Properties:
-      QueueName: "Alertify-Inc-EventQueue-Unique"
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
 
-  SNSTopic:
-    Type: "AWS::SNS::Topic"
-    Properties:
-      TopicName: "Alertify-Inc-CriticalEvents-Unique"
+      - name: Install dependencies
+        run: npm install
 
-  LambdaCodeBucket:
-    Type: "AWS::S3::Bucket"
-    Properties:
-      BucketName: "alertify-lambda-code-bucket-unique"
+      - name: Run tests
+        run: npm run test
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up AWS CLI
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy CloudFormation Stack
+        run: |
+          aws cloudformation deploy \
+            --template-file template.yaml \
+            --stack-name alertify-stack \
+            --capabilities CAPABILITY_IAM \
+            --region ${{ secrets.AWS_REGION }}
+
+      - name: Wait for S3 Bucket Creation
+        run: |
+          echo "Waiting for S3 bucket to be created..."
+          aws s3api wait bucket-exists --bucket alertify-lambda-code-bucket-unique
+
+      - name: Zip Lambda code
+        run: zip lambda-code.zip index.js
+
+      - name: Upload Lambda code to S3
+        run: |
+          aws s3 cp lambda-code.zip s3://alertify-lambda-code-bucket-unique/lambda-code.zip
+
+      - name: Notify on success
+        if: success()
+        run: |
+          curl -X POST "https://api.sendgrid.com/v3/mail/send" \
+            -H "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+                  "personalizations": [{"to": [{"email": "${{ secrets.TO_EMAIL }}"}]}],
+                  "from": {"email": "${{ secrets.FROM_EMAIL }}"},
+                  "subject": "Deployment Successful - Alertify",
+                  "content": [{"type": "text/plain", "value": "El despliegue fue exitoso en Alertify."}]
+                }'
+
+  notify_failure:
+    runs-on: ubuntu-latest
+    if: failure()
+    steps:
+      - name: Notify on failure
+        run: |
+          curl -X POST "https://api.sendgrid.com/v3/mail/send" \
+            -H "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+                  "personalizations": [{"to": [{"email": "${{ secrets.TO_EMAIL }}"}]}],
+                  "from": {"email": "${{ secrets.FROM_EMAIL }}"},
+                  "subject": "Deployment Failed - Alertify",
+                  "content": [{"type": "text/plain", "value": "El pipeline falló durante el despliegue de Alertify."}]
+                }'
