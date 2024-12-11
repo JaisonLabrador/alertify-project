@@ -2,6 +2,13 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'CloudFormation Template para el Sistema de Notificaciones Alertify'
 
 Resources:
+  # Crear el Bucket S3 para Lambda Code
+  LambdaS3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: "alertify-lambda-code-bucket-unique"
+      AccessControl: Private
+
   LambdaExecutionRole:
     Type: "AWS::IAM::Role"
     Properties:
@@ -37,18 +44,13 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: "nodejs18.x"
       Code:
-        S3Bucket: !Ref LambdaCodeBucket
-        S3Key: "lambda-code.zip"
+        S3Bucket: !Ref LambdaS3Bucket  # Usar el bucket creado para Lambda
+        S3Key: "lambda-code.zip"      # Archivo de código Lambda subido al bucket
       Environment:
         Variables: {}
       Tags:
         - Key: "Project"
           Value: "Alertify-Inc"
-
-  LambdaCodeBucket:
-    Type: "AWS::S3::Bucket"
-    Properties:
-      BucketName: "alertify-lambda-code-bucket-unique"
 
   SQSEventSourceMapping:
     Type: "AWS::Lambda::EventSourceMapping"
