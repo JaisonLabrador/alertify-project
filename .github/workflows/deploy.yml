@@ -1,0 +1,61 @@
+name: CI/CD Pipeline for Alertify
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Validate CloudFormation Template
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Validate CloudFormation Template
+        run: |
+          aws cloudformation validate-template --template-body file://template.yaml
+
+  deploy:
+    name: Deploy CloudFormation Stack
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy CloudFormation Stack
+        run: |
+          aws cloudformation deploy \
+            --template-file template.yaml \
+            --stack-name alertify-stack \
+            --capabilities CAPABILITY_NAMED_IAM
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  notify:
+    name: Notify on Failure
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Failure Notification via SendGrid
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        run: |
+          curl --request POST \
+            --url https://api.sendgrid.com/v3/mail/send \
+            --header "Authorization: Bearer $SENDGRID_API_KEY" \
+            --header "Content-Type: application/json" \
+            --data '{
+              "personalizations": [{
+                "to": [{ "email": "tu-email@ejemplo.com" }],
+                "subject": "Pipeline Fallido: Alertify"
+              }],
+              "from": { "email": "noreply@alertify.com" },
+              "content": [{
+                "type": "text/plain",
+                "value": "El despliegue de tu pipeline en GitHub Actions falló. Revisa los logs para más información."
+              }]
+            }'
