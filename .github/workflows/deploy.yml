@@ -52,8 +52,12 @@ jobs:
             --stack-name alertify-stack \
             --capabilities CAPABILITY_IAM
 
-      - name: Notify on success
-        if: success()
+  notify_success:
+    runs-on: ubuntu-latest
+    if: success()  # This ensures that it only runs if deploy is successful
+    needs: deploy
+    steps:
+      - name: Send success email notification
         run: |
           curl -X POST "https://api.sendgrid.com/v3/mail/send" \
             -H "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
@@ -67,9 +71,10 @@ jobs:
 
   notify_failure:
     runs-on: ubuntu-latest
-    if: failure()
+    if: failure()  # This ensures that it only runs if deploy fails
+    needs: deploy
     steps:
-      - name: Notify on failure
+      - name: Send failure email notification
         run: |
           curl -X POST "https://api.sendgrid.com/v3/mail/send" \
             -H "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
@@ -79,19 +84,4 @@ jobs:
                   "from": {"email": "${{ secrets.FROM_EMAIL }}"},
                   "subject": "Deployment Failed - Alertify",
                   "content": [{"type": "text/plain", "value": "El pipeline falló durante el despliegue de Alertify."}]
-                }'
-  notify_success:
-    runs-on: ubuntu-latest
-    if: success()
-    steps:
-      - name: Send email notification on success
-        run: |
-          curl -X POST "https://api.sendgrid.com/v3/mail/send" \
-            -H "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-                  "personalizations": [{"to": [{"email": "${{ secrets.TO_EMAIL }}"}]}],
-                  "from": {"email": "${{ secrets.FROM_EMAIL }}"},
-                  "subject": "GitHub Actions Success - Alertify Project",
-                  "content": [{"type": "text/plain", "value": "El pipeline de GitHub Actions completó el despliegue correctamente."}]
                 }'
