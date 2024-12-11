@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'CloudFormation Template para el Sistema de Notificaciones Alertify Inc'
+Description: 'CloudFormation Template para el Sistema de Notificaciones Alertify'
 
 Resources:
   LambdaExecutionRole:
@@ -37,26 +37,13 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: "nodejs18.x"
       Code:
-        ZipFile: |
-          exports.handler = async (event) => {
-            console.log("Event received:", event);
-            return {
-              statusCode: 200,
-              body: JSON.stringify({ message: "Hello from Lambda!" }),
-            };
-          };
+        S3Bucket: !Ref S3BucketName
+        S3Key: "lambda-code.zip"
       Environment:
         Variables: {}
       Tags:
         - Key: "Project"
           Value: "Alertify-Inc"
-
-  SQSEventSourceMapping:
-    Type: "AWS::Lambda::EventSourceMapping"
-    Properties:
-      BatchSize: 10
-      EventSourceArn: !GetAtt SQSQueue.Arn
-      FunctionName: !GetAtt LambdaFunction.Arn
 
   SQSQueue:
     Type: "AWS::SQS::Queue"
@@ -68,25 +55,14 @@ Resources:
     Properties:
       TopicName: "Alertify-Inc-CriticalEvents-Unique"
 
-  SNSSubscription:
+  SQSSubscription:
     Type: "AWS::SNS::Subscription"
     Properties:
       Protocol: "sqs"
-      TopicArn: !Ref SNSTopic
       Endpoint: !GetAtt SQSQueue.Arn
+      TopicArn: !Ref SNSTopic
 
-  SQSQueuePolicy:
-    Type: "AWS::SQS::QueuePolicy"
+  S3BucketName:
+    Type: "AWS::S3::Bucket"
     Properties:
-      Queues:
-        - !Ref SQSQueue
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: "Allow"
-            Principal: "*"
-            Action: "sqs:SendMessage"
-            Resource: !GetAtt SQSQueue.Arn
-            Condition:
-              ArnEquals:
-                aws:SourceArn: !Ref SNSTopic
+      BucketName: "alertify-lambda-code-bucket-unique"
