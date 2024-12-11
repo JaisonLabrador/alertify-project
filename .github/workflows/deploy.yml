@@ -6,9 +6,27 @@ on:
       - main
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm run test
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -23,14 +41,46 @@ jobs:
       - name: Zip Lambda code
         run: zip lambda-code.zip index.js
 
-      - name: Upload to S3
+      - name: Upload Lambda code to S3
         run: |
           aws s3 cp lambda-code.zip s3://alertify-lambda-code-bucket-unique/lambda-code.zip
 
-      - name: Deploy to CloudFormation
+      - name: Deploy to AWS CloudFormation
         run: |
           aws cloudformation deploy \
             --template-file template.yaml \
             --stack-name alertify-stack \
             --capabilities CAPABILITY_IAM \
             --region ${{ secrets.AWS_REGION }}
+
+  notify_failure:
+    runs-on: ubuntu-latest
+    if: failure()
+    steps:
+      - name: Send email notification on failure
+        run: |
+          curl -X POST "https://api.sendgrid.com/v3/mail/send" \
+            -H "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+                  "personalizations": [{"to": [{"email": "${{ secrets.TO_EMAIL }}"}]}],
+                  "from": {"email": "${{ secrets.FROM_EMAIL }}"},
+                  "subject": "GitHub Actions Failure - Alertify Project",
+                  "content": [{"type": "text/plain", "value": "El pipeline de GitHub Actions falló durante el despliegue del proyecto Alertify."}]
+                }'
+
+  notify_success:
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Send email notification on success
+        run: |
+          curl -X POST "https://api.sendgrid.com/v3/mail/send" \
+            -H "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+                  "personalizations": [{"to": [{"email": "${{ secrets.TO_EMAIL }}"}]}],
+                  "from": {"email": "${{ secrets.FROM_EMAIL }}"},
+                  "subject": "GitHub Actions Success - Alertify Project",
+                  "content": [{"type": "text/plain", "value": "El pipeline de GitHub Actions completó el despliegue correctamente."}]
+                }'
