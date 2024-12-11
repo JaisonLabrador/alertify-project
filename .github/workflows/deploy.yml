@@ -1,62 +1,62 @@
-name: CI/CD Pipeline for Alertify
+name: Deploy to AWS
 
 on:
   push:
     branches:
-      - main
+      - main  # Trigger del pipeline al hacer push a la rama 'main'
 
 jobs:
-  test:
-    name: Validate CloudFormation Template
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Validate CloudFormation Template
-        run: |
-          aws cloudformation validate-template --template-body file://template.yaml
-
   deploy:
-    name: Deploy CloudFormation Stack
-    needs: test
     runs-on: ubuntu-latest
+
     steps:
+      # 1. Checkout del código desde GitHub
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v2
 
-      - name: Deploy CloudFormation Stack
-        run: |
-          aws cloudformation deploy \
-            --template-file template.yaml \
-            --stack-name alertify-stack \
-            --capabilities CAPABILITY_NAMED_IAM
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
+      # 2. Configuración de las credenciales de AWS CLI
+      - name: Set up AWS CLI
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1  # Especifica la región de AWS
 
-  notify:
-    name: Notify on Failure
-    if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Send Failure Notification via SendGrid
-        env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+      # 3. Ejecutar las pruebas del código
+      - name: Run tests
         run: |
-          curl --request POST \
-            --url https://api.sendgrid.com/v3/mail/send \
-            --header "Authorization: Bearer $SENDGRID_API_KEY" \
-            --header "Content-Type: application/json" \
-            --data '{
-              "personalizations": [{
-                "to": [{ "email": "tu-email@ejemplo.com" }],
-                "subject": "Pipeline Fallido: Alertify"
-              }],
-              "from": { "email": "noreply@alertify.com" },
-              "content": [{
-                "type": "text/plain",
-                "value": "El despliegue de tu pipeline en GitHub Actions falló. Revisa los logs para más información."
-              }]
-            }'
+          # Aquí se ejecutan las pruebas (puedes modificar esto para adaptarlo a tu entorno)
+          npm install  # Instalar dependencias
+          npm test      # Ejecutar pruebas
+
+      # 4. Validación de la plantilla de CloudFormation
+      - name: Validate CloudFormation template
+        run: aws cloudformation validate-template --template-body file://template.yaml --region us-east-1
+
+      # 5. Desplegar el template de CloudFormation
+      - name: Deploy CloudFormation stack
+        run: aws cloudformation deploy \
+          --template-file template.yaml \
+          --stack-name alertify-stack \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --region us-east-1
+
+      # 6. Verificar si el despliegue fue exitoso y enviar correo si falla
+      - name: Check for errors and notify via email on failure
+        if: failure()
+        run: |
+          echo "Deployment failed! Sending notification via SendGrid."
+          curl -X POST "https://api.sendgrid.com/v3/mail/send" \
+            -H "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+                  "personalizations": [{
+                    "to": [{"email": "tu-correo@ejemplo.com"}],
+                    "subject": "AWS Deployment Failed"
+                  }],
+                  "from": {"email": "alertify@tu-dominio.com"},
+                  "content": [{
+                    "type": "text/plain",
+                    "value": "El despliegue de AWS CloudFormation falló. Verifica los logs para más detalles."
+                  }]
+                }'
