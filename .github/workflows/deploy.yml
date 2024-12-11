@@ -31,13 +31,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Set up AWS CLI
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
       - name: Deploy to AWS CloudFormation
         run: |
           aws cloudformation deploy \
             --template-file template.yaml \
             --stack-name alertify-stack \
-            --capabilities CAPABILITY_IAM
-
+            --capabilities CAPABILITY_IAM \
+            --region us-east-1  # Especifica la región aquí también
+          
   notify_failure:
     runs-on: ubuntu-latest
     if: failure()
@@ -48,8 +56,8 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d '{
-                  "personalizations": [{"to": [{"email": "tu-email@dominio.com"}]}],
-                  "from": {"email": "from-email@dominio.com"},
-                  "subject": "GitHub Actions Failure",
-                  "content": [{"type": "text/plain", "value": "El pipeline de GitHub Actions falló."}]
+                  "personalizations": [{"to": [{"email": "${{ secrets.TO_EMAIL }}"}]}],
+                  "from": {"email": "${{ secrets.FROM_EMAIL }}"},
+                  "subject": "GitHub Actions Failure - Alertify Project",
+                  "content": [{"type": "text/plain", "value": "El pipeline de GitHub Actions falló durante el despliegue del proyecto Alertify."}]
                 }'
