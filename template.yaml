@@ -2,7 +2,6 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'CloudFormation Template para el Sistema de Notificaciones Alertify'
 
 Resources:
-  # Crear el Bucket S3 para Lambda Code
   LambdaS3Bucket:
     Type: "AWS::S3::Bucket"
     Properties:
