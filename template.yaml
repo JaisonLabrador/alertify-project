@@ -1,37 +1,66 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: 'CloudFormation Template para el Sistema de Notificaciones Alertify'
-
 Resources:
-  SNSTopic:
-    Type: AWS::SNS::Topic
+  LambdaExecutionRole:
+    Type: "AWS::IAM::Role"
     Properties:
-      TopicName: AlertifyCriticalEvents
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "LambdaExecutionPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                  - "sns:Publish"
+                Resource: "*"
+
+  LambdaFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      FunctionName: "Alertify-Inc-ProcessEvents-Unique"
+      Handler: "index.handler"
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: "nodejs18.x"
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log("Event received:", event);
+            return {
+              statusCode: 200,
+              body: JSON.stringify({ message: "Hello from Lambda!" }),
+            };
+          };
+      Environment:
+        Variables: {}
+      Tags:
+        - Key: "Project"
+          Value: "Alertify-Inc"
+
+  SQSEventSourceMapping:
+    Type: "AWS::Lambda::EventSourceMapping"
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt SQSQueue.Arn
+      FunctionName: !GetAtt LambdaFunction.Arn
 
   SQSQueue:
-    Type: AWS::SQS::Queue
+    Type: "AWS::SQS::Queue"
     Properties:
-      QueueName: AlertifyQueue
-      VisibilityTimeout: 60
-      MessageRetentionPeriod: 300
+      QueueName: "Alertify-Inc-EventQueue-Unique"
 
-  SQSQueuePolicy:
-    Type: AWS::SQS::QueuePolicy
+  SNSTopic:
+    Type: "AWS::SNS::Topic"
     Properties:
-      Queues:
-        - !Ref SQSQueue
-      PolicyDocument:
-        Statement:
-          - Effect: Allow
-            Principal: "*"
-            Action: "sqs:SendMessage"
-            Resource: !GetAtt SQSQueue.Arn
-            Condition:
-              ArnEquals:
-                aws:SourceArn: !Ref SNSTopic
-
-  SNSSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      TopicArn: !Ref SNSTopic
-      Protocol: sqs
-      Endpoint: !GetAtt SQSQueue.Arn
+      TopicName: "Alertify-Inc-CriticalEvents-Unique"
