@@ -44,11 +44,28 @@ jobs:
             --template-file template.yaml \
             --stack-name alertify-stack \
             --capabilities CAPABILITY_IAM \
-            --region us-east-1  # Especifica la región aquí también
-          
+            --region us-east-1
+
+  notify_success:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: success()  # Se ejecuta solo si el despliegue fue exitoso
+    steps:
+      - name: Send email notification on success
+        run: |
+          curl -X POST "https://api.sendgrid.com/v3/mail/send" \
+            -H "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+                  "personalizations": [{"to": [{"email": "${{ secrets.TO_EMAIL }}"}]}],
+                  "from": {"email": "${{ secrets.FROM_EMAIL }}"},
+                  "subject": "GitHub Actions Success - Alertify Project",
+                  "content": [{"type": "text/plain", "value": "El despliegue en producción del proyecto Alertify se realizó con éxito."}]
+                }'
+
   notify_failure:
     runs-on: ubuntu-latest
-    if: failure()
+    if: failure()  # Se ejecuta si cualquier trabajo falla
     steps:
       - name: Send email notification on failure
         run: |
