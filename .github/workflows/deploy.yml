@@ -45,13 +45,12 @@ jobs:
         run: |
           aws s3 cp lambda-code.zip s3://alertify-lambda-code-bucket-unique/lambda-code.zip
 
-      - name: Deploy to AWS CloudFormation
+      - name: Deploy CloudFormation Stack
         run: |
           aws cloudformation deploy \
             --template-file template.yaml \
             --stack-name alertify-stack \
-            --capabilities CAPABILITY_IAM \
-            --region ${{ secrets.AWS_REGION }}
+            --capabilities CAPABILITY_IAM
 
       - name: Notify on success
         if: success()
