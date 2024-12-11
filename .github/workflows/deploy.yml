@@ -6,9 +6,27 @@ on:
       - main
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm run test
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -28,7 +46,7 @@ jobs:
             --capabilities CAPABILITY_IAM \
             --region ${{ secrets.AWS_REGION }}
 
-      - name: Notify on success
+      - name: Notify success
         if: success()
         run: |
           curl -X POST "https://api.sendgrid.com/v3/mail/send" \
@@ -37,12 +55,15 @@ jobs:
             -d '{
                   "personalizations": [{"to": [{"email": "${{ secrets.TO_EMAIL }}"}]}],
                   "from": {"email": "${{ secrets.FROM_EMAIL }}"},
-                  "subject": "GitHub Actions Success - Alertify Project",
-                  "content": [{"type": "text/plain", "value": "El despliegue a producción fue exitoso para el proyecto Alertify."}]
+                  "subject": "Deployment Success - Alertify Project",
+                  "content": [{"type": "text/plain", "value": "The deployment to production was successful for the Alertify Project!"}]
                 }'
 
-      - name: Notify on failure
-        if: failure()
+  notify_failure:
+    runs-on: ubuntu-latest
+    if: failure()
+    steps:
+      - name: Send email notification on failure
         run: |
           curl -X POST "https://api.sendgrid.com/v3/mail/send" \
             -H "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
@@ -51,5 +72,5 @@ jobs:
                   "personalizations": [{"to": [{"email": "${{ secrets.TO_EMAIL }}"}]}],
                   "from": {"email": "${{ secrets.FROM_EMAIL }}"},
                   "subject": "GitHub Actions Failure - Alertify Project",
-                  "content": [{"type": "text/plain", "value": "El pipeline de GitHub Actions falló durante el despliegue del proyecto Alertify."}]
+                  "content": [{"type": "text/plain", "value": "The GitHub Actions pipeline failed during the deployment of the Alertify Project."}]
                 }'
