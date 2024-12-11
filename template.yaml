@@ -2,12 +2,6 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'CloudFormation Template para el Sistema de Notificaciones Alertify'
 
 Resources:
-  LambdaS3Bucket:
-    Type: "AWS::S3::Bucket"
-    Properties:
-      BucketName: "alertify-lambda-code-bucket-unique"
-      AccessControl: Private
-
   LambdaExecutionRole:
     Type: "AWS::IAM::Role"
     Properties:
@@ -43,8 +37,14 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: "nodejs18.x"
       Code:
-        S3Bucket: !Ref LambdaS3Bucket  # Usar el bucket creado para Lambda
-        S3Key: "lambda-code.zip"      # Archivo de código Lambda subido al bucket
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log("Event received:", event);
+            return {
+              statusCode: 200,
+              body: JSON.stringify({ message: "Hello from Lambda!" }),
+            };
+          };
       Environment:
         Variables: {}
       Tags:
