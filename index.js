@@ -15,7 +15,7 @@ exports.handler = async (event) => {
       const messageString = JSON.stringify(message);
       if (Buffer.byteLength(messageString, 'utf8') > MAX_MESSAGE_SIZE) {
         console.log('Message is too large, truncating...');
-        message.message = messageString.substring(0, MAX_MESSAGE_SIZE); // O cualquier lógica para reducir el mensaje
+        message.message = messageString.substring(0, MAX_MESSAGE_SIZE);
       }
 
       const snsParams = {
