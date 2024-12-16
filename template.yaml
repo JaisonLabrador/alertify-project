@@ -1,6 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'CloudFormation Template para el Sistema de Notificaciones Alertify'
 
+Parameters:
+  TOEmail:
+    Type: String
+    Description: Email address to receive notifications.
+
 Resources:
   LambdaExecutionRole:
     Type: "AWS::IAM::Role"
@@ -72,5 +77,5 @@ Resources:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: "email"
-      Endpoint: !Sub '{{resolve:secretsmanager:${TO_EMAIL}}}'
+      Endpoint: !Ref TOEmail
       TopicArn: !Ref SNSTopic

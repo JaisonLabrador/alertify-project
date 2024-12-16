@@ -58,7 +58,8 @@ jobs:
             --template-file template.yaml \
             --stack-name alertify-stack \
             --capabilities CAPABILITY_IAM \
-            --region ${{ secrets.AWS_REGION }}
+            --region ${{ secrets.AWS_REGION }} \
+            --parameter-overrides TOEmail=${{ secrets.TO_EMAIL }}
 
   notify_success:
     runs-on: ubuntu-latest
