@@ -1,33 +1,30 @@
 const AWS = require('aws-sdk');
 const sns = new AWS.SNS();
 const sqs = new AWS.SQS();
+const MAX_MESSAGE_SIZE = 256 * 1024; // 256 KB, el límite de SNS
 
 exports.handler = async (event) => {
   try {
     console.log("Event received:", JSON.stringify(event, null, 2));
 
-    // Iterar sobre los mensajes de SQS
     for (const record of event.Records) {
       const message = JSON.parse(record.body);
       console.log("Processing message:", message);
 
-      // Publicar el mensaje en el SNS Topic
+      // Verificar el tamaño del mensaje
+      const messageString = JSON.stringify(message);
+      if (Buffer.byteLength(messageString, 'utf8') > MAX_MESSAGE_SIZE) {
+        console.log('Message is too large, truncating...');
+        message.message = messageString.substring(0, MAX_MESSAGE_SIZE); // O cualquier lógica para reducir el mensaje
+      }
+
       const snsParams = {
-        Message: JSON.stringify(message),
-        TopicArn: 'arn:aws:sns:us-east-1:590183865524:Alertify-Inc-CriticalEvents-Unique', // ARN del SNS Topic
+        Message: messageString,
+        TopicArn: 'arn:aws:sns:us-east-1:590183865524:Alertify-Inc-CriticalEvents-Unique',
       };
 
       await sns.publish(snsParams).promise();
       console.log('Message sent to SNS:', snsParams.Message);
-
-      // Comentado: No eliminamos el mensaje de la cola SQS
-      // const deleteParams = {
-      //   QueueUrl: 'https://sqs.us-east-1.amazonaws.com/590183865524/Alertify-Inc-EventQueue-Unique',  // URL de la SQS Queue
-      //   ReceiptHandle: record.receiptHandle,
-      // };
-
-      // await sqs.deleteMessage(deleteParams).promise();
-      // console.log('Message deleted from SQS');
     }
 
     return {
