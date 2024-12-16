@@ -39,7 +39,7 @@ Resources:
       Code:
         ZipFile: |
           exports.handler = async (event) => {
-            console.log("Event received:", event);
+            console.log("Event received:", JSON.stringify(event, null, 2));
             return {
               statusCode: 200,
               body: JSON.stringify({ message: "Hello from Lambda!" }),
@@ -67,3 +67,10 @@ Resources:
     Type: "AWS::SNS::Topic"
     Properties:
       TopicName: "Alertify-Inc-CriticalEvents-Unique"
+
+  MySNSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: "email"
+      Endpoint: !Sub '{{resolve:secretsmanager:${TO_EMAIL}}}'
+      TopicArn: !Ref SNSTopic
