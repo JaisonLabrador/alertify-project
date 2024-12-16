@@ -11,15 +11,19 @@ exports.handler = async (event) => {
       const message = JSON.parse(record.body);
       console.log("Processing message:", message);
 
+      // Filtrar solo el mensaje original
+      const originalMessage = message.Message;
+
       // Verificar el tamaño del mensaje
-      const messageString = JSON.stringify(message);
+      const messageString = JSON.stringify(originalMessage);
       if (Buffer.byteLength(messageString, 'utf8') > MAX_MESSAGE_SIZE) {
         console.log('Message is too large, truncating...');
-        message.message = messageString.substring(0, MAX_MESSAGE_SIZE);
+        originalMessage = originalMessage.substring(0, MAX_MESSAGE_SIZE); // O cualquier lógica para reducir el mensaje
       }
 
+      // Publicar solo el mensaje original
       const snsParams = {
-        Message: messageString,
+        Message: originalMessage,
         TopicArn: 'arn:aws:sns:us-east-1:590183865524:Alertify-Inc-CriticalEvents-Unique',
       };
 
