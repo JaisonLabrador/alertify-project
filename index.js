@@ -21,10 +21,10 @@ exports.handler = async (event) => {
       console.log('Message sent to SNS:', snsParams.Message);
 
       // Eliminar el mensaje de la cola SQS después de procesarlo
-      const deleteParams = {
-        QueueUrl: 'https://sqs.us-east-1.amazonaws.com/590183865524/Alertify-Inc-EventQueue-Unique',  // URL de la SQS Queue
-        ReceiptHandle: record.receiptHandle,
-      };
+      // const deleteParams = {
+      //   QueueUrl: 'https://sqs.us-east-1.amazonaws.com/590183865524/Alertify-Inc-EventQueue-Unique',  // URL de la SQS Queue
+      //   ReceiptHandle: record.receiptHandle,
+      // };
 
       await sqs.deleteMessage(deleteParams).promise();
       console.log('Message deleted from SQS');
