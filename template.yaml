@@ -35,7 +35,7 @@ Resources:
       FunctionName: "Alertify-Inc-ProcessEvents-Unique"
       Handler: "index.handler"
       Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: "nodejs18.x"
+      Runtime: "nodejs20.x"
       Code:
         ZipFile: |
           exports.handler = async (event) => {
