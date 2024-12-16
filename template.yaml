@@ -93,4 +93,7 @@ Resources:
     Properties:
       Protocol: "email"
       Endpoint: !Ref TOEmail
-      Topic
+      TopicArn: !Ref SNSTopic
+      FilterPolicy:
+        Subject:
+          - "TOPIC SNS TEST"
