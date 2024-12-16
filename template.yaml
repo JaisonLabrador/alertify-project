@@ -43,11 +43,26 @@ Resources:
       Runtime: "nodejs20.x"
       Code:
         ZipFile: |
+          const processedMessages = new Set();
+
           exports.handler = async (event) => {
             console.log("Event received:", JSON.stringify(event, null, 2));
+
+            for (const record of event.Records || []) {
+              const messageId = record.messageId;
+
+              if (processedMessages.has(messageId)) {
+                console.log(`Duplicate message ignored: ${messageId}`);
+                continue;
+              }
+
+              processedMessages.add(messageId);
+              console.log(`Processing message: ${record.body}`);
+            }
+
             return {
               statusCode: 200,
-              body: JSON.stringify({ message: "Hello from Lambda!" }),
+              body: JSON.stringify({ message: "Messages processed successfully" }),
             };
           };
       Environment:
@@ -78,4 +93,4 @@ Resources:
     Properties:
       Protocol: "email"
       Endpoint: !Ref TOEmail
-      TopicArn: !Ref SNSTopic
+      Topic
