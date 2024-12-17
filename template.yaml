@@ -7,8 +7,9 @@ Parameters:
     Description: Email address to receive notifications.
 
 Resources:
+  # IAM Role para Lambda
   LambdaExecutionRole:
-    Type: "AWS::IAM::Role"
+    Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -34,8 +35,9 @@ Resources:
                   - "sns:Publish"
                 Resource: "*"
 
+  # Recurso Lambda
   LambdaFunction:
-    Type: "AWS::Lambda::Function"
+    Type: AWS::Lambda::Function
     Properties:
       FunctionName: "Alertify-Inc-ProcessEvents-Unique"
       Handler: "index.handler"
@@ -45,64 +47,79 @@ Resources:
         ZipFile: |
           const AWS = require('aws-sdk');
           const sns = new AWS.SNS();
-          const processedMessages = new Set();
+          const sqs = new AWS.SQS();
 
           exports.handler = async (event) => {
             console.log("Event received:", JSON.stringify(event, null, 2));
 
-            for (const record of event.Records || []) {
-              const messageId = record.messageId;
-              const body = JSON.parse(record.body);
+            const deleteParams = {
+              Entries: [],
+              QueueUrl: process.env.SQS_QUEUE_URL,
+            };
 
-              // Evita duplicados usando Set
-              if (processedMessages.has(messageId)) {
-                console.log(`Duplicate message ignored: ${messageId}`);
-                continue;
-              }
+            try {
+              for (const record of event.Records || []) {
+                const messageId = record.messageId;
+                const body = JSON.parse(record.body);
 
-              processedMessages.add(messageId);
+                // Publicar mensaje en SNS
+                const params = {
+                  Message: body.Message || "No Message",
+                  Subject: body.Subject || "Alert Notification",
+                  TopicArn: process.env.SNS_TOPIC_ARN,
+                };
 
-              // Reenvía todos los mensajes a SNS
-              const params = {
-                Message: body.Message,
-                Subject: body.Subject || "No Subject",
-                TopicArn: process.env.SNS_TOPIC_ARN,
-              };
-
-              try {
                 await sns.publish(params).promise();
                 console.log(`Message sent to SNS: ${messageId}`);
-              } catch (error) {
-                console.error(`Error publishing to SNS: ${error.message}`);
+
+                // Agregar mensaje para eliminarlo de SQS
+                deleteParams.Entries.push({
+                  Id: messageId,
+                  ReceiptHandle: record.receiptHandle,
+                });
               }
+
+              // Eliminar mensajes de SQS
+              if (deleteParams.Entries.length > 0) {
+                await sqs.deleteMessageBatch(deleteParams).promise();
+                console.log("Messages deleted from SQS");
+              }
+            } catch (error) {
+              console.error("Error processing messages:", error.message);
+              throw error;
             }
 
-            return { statusCode: 200, body: "Messages processed successfully" };
+            return { statusCode: 200, body: "Messages processed and deleted successfully" };
           };
       Environment:
         Variables:
           SNS_TOPIC_ARN: !Ref SNSTopic
+          SQS_QUEUE_URL: !Ref SQSQueue
       Tags:
         - Key: "Project"
           Value: "Alertify-Inc"
 
+  # Event Source Mapping de SQS a Lambda
   SQSEventSourceMapping:
-    Type: "AWS::Lambda::EventSourceMapping"
+    Type: AWS::Lambda::EventSourceMapping
     Properties:
       BatchSize: 10
       EventSourceArn: !GetAtt SQSQueue.Arn
       FunctionName: !GetAtt LambdaFunction.Arn
 
+  # Cola SQS
   SQSQueue:
-    Type: "AWS::SQS::Queue"
+    Type: AWS::SQS::Queue
     Properties:
       QueueName: "Alertify-Inc-EventQueue-Unique"
 
+  # SNS Topic
   SNSTopic:
-    Type: "AWS::SNS::Topic"
+    Type: AWS::SNS::Topic
     Properties:
       TopicName: "Alertify-Inc-CriticalEvents-Unique"
 
+  # Suscripción SNS (Email)
   MySNSSubscription:
     Type: AWS::SNS::Subscription
     Properties:
