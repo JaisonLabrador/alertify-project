@@ -1,33 +1,47 @@
 const AWS = require('aws-sdk');
 const sns = new AWS.SNS();
 const sqs = new AWS.SQS();
-const MAX_MESSAGE_SIZE = 256 * 1024; // 256 KB, el límite de SNS
 
 exports.handler = async (event) => {
-  try {
-    const message = JSON.parse(event.Records[0].body);
+  console.log("Event received:", JSON.stringify(event, null, 2));
+  //evente
 
-    // Filtro: Verificar si el mensaje ya fue procesado
-    if (message.alreadyProcessed) {
-      console.log('Mensaje ya procesado, no enviando a SNS');
-      return;
+  const deleteParams = {
+    Entries: [],
+    QueueUrl: process.env.SQS_QUEUE_URL,
+  };
+
+  try {
+    for (const record of event.Records || []) {
+      const messageId = record.messageId;
+      const body = JSON.parse(record.body);
+
+      // Publicar mensaje en SNS
+      const params = {
+        Message: body.Message || "No Message",
+        Subject: body.Subject || "Alert Notification",
+        TopicArn: process.env.SNS_TOPIC_ARN,
+      };
+
+      await sns.publish(params).promise();
+      console.log(`Message sent to SNS: ${messageId}`);
+
+      // Agregar mensaje para eliminarlo de SQS
+      deleteParams.Entries.push({
+        Id: messageId,
+        ReceiptHandle: record.receiptHandle,
+      });
     }
 
-    // Marcar el mensaje como procesado
-    message.alreadyProcessed = true;
-
-    const snsParams = {
-      Message: JSON.stringify(message),
-      TopicArn: 'arn:aws:sns:us-east-1:590183865524:Alertify-Inc-CriticalEvents-Unique',
-    };
-
-    await sns.publish(snsParams).promise();
-    console.log('Mensaje enviado a SNS');
-
-    return { statusCode: 200, body: JSON.stringify({ message: 'Exitoso' }) };
-
+    // Eliminar mensajes de SQS
+    if (deleteParams.Entries.length > 0) {
+      await sqs.deleteMessageBatch(deleteParams).promise();
+      console.log("Messages deleted from SQS");
+    }
   } catch (error) {
-    console.error('Error:', error);
-    return { statusCode: 500, body: JSON.stringify({ message: 'Error' }) };
+    console.error("Error processing messages:", error.message);
+    throw error;
   }
+
+  return { statusCode: 200, body: "Messages processed and deleted successfully" };
 };
