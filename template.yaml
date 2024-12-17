@@ -1,131 +1,100 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: 'CloudFormation Template para el Sistema de Notificaciones Alertify'
-
-Parameters:
-  TOEmail:
-    Type: String
-    Description: Email address to receive notifications.
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudFormation Template for ElastiCache Redis and Required Resources
 
 Resources:
-  # IAM Role para Lambda
+  # Security Group for Redis
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Redis cluster
+      VpcId: !Sub "${AWS::StackName}-vpc" # Replace with your VPC ID or parameterize
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          CidrIp: 0.0.0.0/0 # Replace with Lambda security group or specific CIDR for your setup
+
+  # Redis Subnet Group
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Subnet group for Redis cluster
+      SubnetIds:
+        - subnet-12345678 # Replace with your subnet IDs
+        - subnet-87654321 # Replace with your subnet IDs
+
+  # ElastiCache Redis Cluster
+  RedisCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      CacheNodeType: cache.t3.micro # Choose a node type based on your use case
+      Engine: redis
+      NumCacheNodes: 1
+      ClusterName: RedisCluster
+      VpcSecurityGroupIds:
+        - !GetAtt RedisSecurityGroup.GroupId
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      EngineVersion: "6.x" # Replace with the version you need
+      Tags:
+        - Key: Name
+          Value: RedisCluster
+
+  # Lambda Function IAM Role
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
-          - Effect: "Allow"
+          - Effect: Allow
             Principal:
-              Service:
-                - "lambda.amazonaws.com"
-            Action: "sts:AssumeRole"
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
       Policies:
-        - PolicyName: "LambdaExecutionPolicy"
+        - PolicyName: LambdaSQSAndSNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Effect: "Allow"
+              - Effect: Allow
                 Action:
-                  - "logs:CreateLogGroup"
-                  - "logs:CreateLogStream"
-                  - "logs:PutLogEvents"
                   - "sqs:ReceiveMessage"
-                  - "sqs:DeleteMessage"
-                  - "sqs:GetQueueAttributes"
+                  - "sqs:DeleteMessageBatch"
+                Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:YourQueueName"
+              - Effect: Allow
+                Action:
                   - "sns:Publish"
-                Resource: "*"
+                Resource: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:YourTopicName"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
 
-  # Recurso Lambda
-  LambdaFunction:
+  # Lambda Function
+  MyLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: "Alertify-Inc-ProcessEvents-Unique"
-      Handler: "index.handler"
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: "nodejs20.x"
+      FunctionName: MySQSProcessor
+      Handler: index.handler
+      Runtime: nodejs18.x
       Code:
-        ZipFile: |
-          const AWS = require('aws-sdk');
-          const sns = new AWS.SNS();
-          const sqs = new AWS.SQS();
-
-          exports.handler = async (event) => {
-            console.log("Event received:", JSON.stringify(event, null, 2));
-
-            const deleteParams = {
-              Entries: [],
-              QueueUrl: process.env.SQS_QUEUE_URL,
-            };
-
-            try {
-              for (const record of event.Records || []) {
-                const messageId = record.messageId;
-                const body = JSON.parse(record.body);
-
-                // Publicar mensaje en SNS
-                const params = {
-                  Message: body.Message || "No Message",
-                  Subject: body.Subject || "Alert Notification",
-                  TopicArn: process.env.SNS_TOPIC_ARN,
-                };
-
-                await sns.publish(params).promise();
-                console.log(`Message sent to SNS: ${messageId}`);
-
-                // Agregar mensaje para eliminarlo de SQS
-                deleteParams.Entries.push({
-                  Id: messageId,
-                  ReceiptHandle: record.receiptHandle,
-                });
-              }
-
-              // Eliminar mensajes de SQS
-              if (deleteParams.Entries.length > 0) {
-                await sqs.deleteMessageBatch(deleteParams).promise();
-                console.log("Messages deleted from SQS");
-              }
-            } catch (error) {
-              console.error("Error processing messages:", error.message);
-              throw error;
-            }
-
-            return { statusCode: 200, body: "Messages processed and deleted successfully" };
-          };
+        S3Bucket: your-code-bucket # Replace with your S3 bucket
+        S3Key: your-code-key.zip # Replace with your S3 object key
+      Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
-          SNS_TOPIC_ARN: !Ref SNSTopic
-          SQS_QUEUE_URL: !Ref SQSQueue
-      Tags:
-        - Key: "Project"
-          Value: "Alertify-Inc"
+          SQS_QUEUE_URL: !Sub "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/YourQueueName"
+          SNS_TOPIC_ARN: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:YourTopicName"
+          REDIS_HOST: !GetAtt RedisCluster.ConfigurationEndpoint.Address
+          REDIS_PORT: "6379"
+      VpcConfig:
+        SecurityGroupIds:
+          - !GetAtt RedisSecurityGroup.GroupId
+        SubnetIds:
+          - subnet-12345678 # Replace with your Lambda subnets
+          - subnet-87654321 # Replace with your Lambda subnets
 
-  # Event Source Mapping de SQS a Lambda
-  SQSEventSourceMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      BatchSize: 10
-      EventSourceArn: !GetAtt SQSQueue.Arn
-      FunctionName: !GetAtt LambdaFunction.Arn
-
-  # Cola SQS
-  SQSQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: "Alertify-Inc-EventQueue-Unique"
-
-  # SNS Topic
-  SNSTopic:
-    Type: AWS::SNS::Topic
-    Properties:
-      TopicName: "Alertify-Inc-CriticalEvents-Unique"
-
-  # Suscripción SNS (Email)
-  MySNSSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      Protocol: "email"
-      Endpoint: !Ref TOEmail
-      TopicArn: !Ref SNSTopic
-      FilterPolicy:
-        EventType:
-          - "Critical"
+Outputs:
+  RedisClusterEndpoint:
+    Description: Endpoint for the Redis cluster
+    Value: !GetAtt RedisCluster.ConfigurationEndpoint.Address
+  LambdaFunctionArn:
+    Description: ARN of the Lambda function
+    Value: !GetAtt MyLambdaFunction.Arn
