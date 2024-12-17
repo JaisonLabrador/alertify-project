@@ -2,9 +2,10 @@ const AWS = require('aws-sdk');
 const sns = new AWS.SNS();
 const sqs = new AWS.SQS();
 
+const processedMessages = new Set();
+
 exports.handler = async (event) => {
   console.log("Event received:", JSON.stringify(event, null, 2));
-  //evente
 
   const deleteParams = {
     Entries: [],
@@ -14,9 +15,18 @@ exports.handler = async (event) => {
   try {
     for (const record of event.Records || []) {
       const messageId = record.messageId;
-      const body = JSON.parse(record.body);
+
+      // Si el mensaje ya fue procesado, lo ignoramos
+      if (processedMessages.has(messageId)) {
+        console.log(`Duplicate message ignored: ${messageId}`);
+        continue;
+      }
+
+      processedMessages.add(messageId);
+      console.log(`Processing message: ${record.body}`);
 
       // Publicar mensaje en SNS
+      const body = JSON.parse(record.body);
       const params = {
         Message: body.Message || "No Message",
         Subject: body.Subject || "Alert Notification",
