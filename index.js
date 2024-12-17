@@ -1,7 +1,6 @@
 const AWS = require('aws-sdk');
 const sns = new AWS.SNS();
 const sqs = new AWS.SQS();
-
 const processedMessages = new Set();
 
 exports.handler = async (event) => {
@@ -22,6 +21,7 @@ exports.handler = async (event) => {
         continue;
       }
 
+      // Agregar mensaje a la lista de procesados
       processedMessages.add(messageId);
       console.log(`Processing message: ${record.body}`);
 
@@ -33,17 +33,18 @@ exports.handler = async (event) => {
         TopicArn: process.env.SNS_TOPIC_ARN,
       };
 
+      // Enviar el mensaje procesado
       await sns.publish(params).promise();
       console.log(`Message sent to SNS: ${messageId}`);
 
-      // Agregar mensaje para eliminarlo de SQS
+      // Eliminar el mensaje de SQS
       deleteParams.Entries.push({
         Id: messageId,
         ReceiptHandle: record.receiptHandle,
       });
     }
 
-    // Eliminar mensajes de SQS
+    // Eliminar mensajes procesados de SQS
     if (deleteParams.Entries.length > 0) {
       await sqs.deleteMessageBatch(deleteParams).promise();
       console.log("Messages deleted from SQS");
