@@ -43,6 +43,8 @@ Resources:
       Runtime: "nodejs20.x"
       Code:
         ZipFile: |
+          const AWS = require('aws-sdk');
+          const sns = new AWS.SNS();
           const processedMessages = new Set();
 
           exports.handler = async (event) => {
@@ -50,23 +52,36 @@ Resources:
 
             for (const record of event.Records || []) {
               const messageId = record.messageId;
+              const body = JSON.parse(record.body);
 
+              // Evita duplicados usando Set
               if (processedMessages.has(messageId)) {
                 console.log(`Duplicate message ignored: ${messageId}`);
                 continue;
               }
 
               processedMessages.add(messageId);
-              console.log(`Processing message: ${record.body}`);
+
+              // Reenvía todos los mensajes a SNS
+              const params = {
+                Message: body.Message,
+                Subject: body.Subject || "No Subject",
+                TopicArn: process.env.SNS_TOPIC_ARN,
+              };
+
+              try {
+                await sns.publish(params).promise();
+                console.log(`Message sent to SNS: ${messageId}`);
+              } catch (error) {
+                console.error(`Error publishing to SNS: ${error.message}`);
+              }
             }
 
-            return {
-              statusCode: 200,
-              body: JSON.stringify({ message: "Messages processed successfully" }),
-            };
+            return { statusCode: 200, body: "Messages processed successfully" };
           };
       Environment:
-        Variables: {}
+        Variables:
+          SNS_TOPIC_ARN: !Ref SNSTopic
       Tags:
         - Key: "Project"
           Value: "Alertify-Inc"
@@ -94,6 +109,3 @@ Resources:
       Protocol: "email"
       Endpoint: !Ref TOEmail
       TopicArn: !Ref SNSTopic
-      FilterPolicy:
-        Subject:
-          - "TOPIC SNS TEST"
