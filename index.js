@@ -31,6 +31,12 @@ exports.handler = async (event) => {
         Message: body.Message || "No Message",
         Subject: body.Subject || "Alert Notification",
         TopicArn: process.env.SNS_TOPIC_ARN,
+        MessageAttributes: {
+          "EventType": {
+            DataType: "String",
+            StringValue: body.EventType || "Critical"  // Aquí defines el atributo
+          }
+        }
       };
 
       // Enviar el mensaje procesado

@@ -126,3 +126,6 @@ Resources:
       Protocol: "email"
       Endpoint: !Ref TOEmail
       TopicArn: !Ref SNSTopic
+      FilterPolicy:
+        EventType:
+          - "Critical"
