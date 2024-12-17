@@ -1,25 +1,64 @@
+const AWS = require('aws-sdk');
+const sns = new AWS.SNS();
+const sqs = new AWS.SQS();
+const processedMessages = new Set();
+
 exports.handler = async (event) => {
-  // Los mensajes llegan como un lote
-  const records = event.Records;
+  console.log("Event received:", JSON.stringify(event, null, 2));
 
-  // Filtro de mensajes basado en contenido
-  const filteredMessages = records.filter((record) => {
+  const deleteParams = {
+    Entries: [],
+    QueueUrl: process.env.SQS_QUEUE_URL,
+  };
+
+  try {
+    for (const record of event.Records || []) {
+      const messageId = record.messageId;
+
+      // Si el mensaje ya fue procesado, lo ignoramos
+      if (processedMessages.has(messageId)) {
+        console.log(`Duplicate message ignored: ${messageId}`);
+        continue;
+      }
+
+      // Agregar mensaje a la lista de procesados
+      processedMessages.add(messageId);
+      console.log(`Processing message: ${record.body}`);
+
+      // Publicar mensaje en SNS
       const body = JSON.parse(record.body);
-      const messageAttributes = body.MessageAttributes;
+      const params = {
+        Message: body.Message || "No Message",
+        Subject: body.Subject || "Alert Notification",
+        TopicArn: process.env.SNS_TOPIC_ARN,
+        MessageAttributes: {
+          "EventType": {
+            DataType: "String",
+            StringValue: body.EventType || "Critical"  // Aquí se define el atributo
+          }
+        }
+      };
 
-      // Asegúrate de verificar las claves según tu implementación
-      return messageAttributes.Type && messageAttributes.Type.StringValue === 'Warning' &&
-             messageAttributes.Priority && parseInt(messageAttributes.Priority.StringValue) < 3;
-  });
+      // Enviar el mensaje procesado
+      await sns.publish(params).promise();
+      console.log(`Message sent to SNS: ${messageId}`);
 
-  // Procesar los mensajes filtrados
-  for (const message of filteredMessages) {
-      console.log('Mensaje filtrado:', message.body);
-      // Aquí puedes realizar la lógica de negocio que necesites
+      // Eliminar el mensaje de SQS
+      deleteParams.Entries.push({
+        Id: messageId,
+        ReceiptHandle: record.receiptHandle,
+      });
+    }
+
+    // Eliminar mensajes procesados de SQS
+    if (deleteParams.Entries.length > 0) {
+      await sqs.deleteMessageBatch(deleteParams).promise();
+      console.log("Messages deleted from SQS");
+    }
+  } catch (error) {
+    console.error("Error processing messages:", error.message);
+    throw error;
   }
 
-  return {
-      statusCode: 200,
-      body: JSON.stringify({ message: 'Mensajes procesados exitosamente' }),
-  };
+  return { statusCode: 200, body: "Messages processed and deleted successfully" };
 };
