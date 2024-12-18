@@ -99,7 +99,7 @@ Resources:
         - Key: "Project"
           Value: "Alertify-Inc"
 
-  # Event Source Mapping de SQS a Lambda
+  # Events Source Mapping de SQS a Lambda
   SQSEventSourceMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
