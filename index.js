@@ -28,11 +28,11 @@ exports.handler = async (event) => {
       // Check Redis if the message has already been processed
       const isDuplicate = await redisClient.get(messageId);
       if (isDuplicate) {
-        console.log(⁠ Duplicate message ignored: ${messageId} ⁠);
+        console.log(`Duplicate message ignored: ${messageId}`);
         continue;
       }
 
-      console.log(⁠ Processing message: ${record.body} ⁠);
+      console.log(`Processing message: ${record.body}`);
 
       try {
         // Parse the message body
@@ -52,7 +52,7 @@ exports.handler = async (event) => {
 
         // Publish to SNS
         await sns.publish(snsParams).promise();
-        console.log(⁠ Message sent to SNS: ${messageId} ⁠);
+        console.log(`Message sent to SNS: ${messageId}`);
 
         // Mark message as processed in Redis with a TTL (e.g., 1 hour)
         await redisClient.set(messageId, "processed", "EX", 3600);
@@ -63,7 +63,7 @@ exports.handler = async (event) => {
           ReceiptHandle: record.receiptHandle,
         });
       } catch (err) {
-        console.error(⁠ Failed to process message ${messageId}: ⁠, err);
+        console.error(`Failed to process message ${messageId}:`, err);
         // Do not delete the message; SQS will retry
       }
     }

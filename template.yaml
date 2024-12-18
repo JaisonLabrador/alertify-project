@@ -7,12 +7,12 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for Redis cluster
-      VpcId: !Sub "${AWS::StackName}-vpc" # Replace with your VPC ID or parameterize
+      VpcId: !Sub "${AWS::StackName}-vpc"
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 6379
           ToPort: 6379
-          CidrIp: 0.0.0.0/0 # Replace with Lambda security group or specific CIDR for your setup
+          CidrIp: 0.0.0.0/0
 
   # Redis Subnet Group
   RedisSubnetGroup:
@@ -27,14 +27,14 @@ Resources:
   RedisCluster:
     Type: AWS::ElastiCache::CacheCluster
     Properties:
-      CacheNodeType: cache.t3.micro # Choose a node type based on your use case
+      CacheNodeType: cache.t3.micro
       Engine: redis
       NumCacheNodes: 1
       ClusterName: RedisCluster
       VpcSecurityGroupIds:
         - !GetAtt RedisSecurityGroup.GroupId
       CacheSubnetGroupName: !Ref RedisSubnetGroup
-      EngineVersion: "6.x" # Replace with the version you need
+      EngineVersion: "6.x"
       Tags:
         - Key: Name
           Value: RedisCluster
@@ -75,8 +75,8 @@ Resources:
       Handler: index.handler
       Runtime: nodejs18.x
       Code:
-        S3Bucket: your-code-bucket # Replace with your S3 bucket
-        S3Key: your-code-key.zip # Replace with your S3 object key
+        S3Bucket: your-code-bucket
+        S3Key: your-code-key.zip
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
@@ -88,8 +88,8 @@ Resources:
         SecurityGroupIds:
           - !GetAtt RedisSecurityGroup.GroupId
         SubnetIds:
-          - subnet-12345678 # Replace with your Lambda subnets
-          - subnet-87654321 # Replace with your Lambda subnets
+          - subnet-12345678
+          - subnet-87654321
 
 Outputs:
   RedisClusterEndpoint:
