@@ -35,7 +35,7 @@ Resources:
                   - "sns:Publish"
                 Resource: "*"
 
-  # Recurso Lambda
+  # Recursos Lambda
   LambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
