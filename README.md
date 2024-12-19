@@ -2,7 +2,7 @@
 # Sistema de Notificación en Tiempo Real - Alertify Inc.
 
 Este proyecto implementa una solución de notificación en tiempo real para Alertify Inc., utilizando AWS SNS, SQS, Lambda y CI/CD mediante GitHub Actions. El sistema permite recibir y procesar eventos de monitoreo en tiempo real y notificar a los usuarios sobre incidentes críticos.
-
+ 
 ## Tabla de Contenidos
 1. [Arquitectura del Proyecto](#arquitectura-del-proyecto)
 2. [Requisitos](#requisitos)
