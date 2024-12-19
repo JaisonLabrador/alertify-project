@@ -1,7 +1,6 @@
 const AWS = require('aws-sdk');
 const sns = new AWS.SNS();
 const sqs = new AWS.SQS();
-const processedMessages = new Set();
 
 exports.handler = async (event) => {
   console.log("Event received:", JSON.stringify(event, null, 2));
@@ -14,19 +13,11 @@ exports.handler = async (event) => {
   try {
     for (const record of event.Records || []) {
       const messageId = record.messageId;
-
-      // Si el mensaje ya fue procesado, lo ignoramos
-      if (processedMessages.has(messageId)) {
-        console.log(`Duplicate message ignored: ${messageId}`);
-        continue;
-      }
-
-      // Agregar mensaje a la lista de procesados
-      processedMessages.add(messageId);
-      console.log(`Processing message: ${record.body}`);
+      const body = JSON.parse(record.body);
+      
+      console.log(`Processing message: ${messageId}`);
 
       // Publicar mensaje en SNS
-      const body = JSON.parse(record.body);
       const params = {
         Message: body.Message || "No Message",
         Subject: body.Subject || "Alert Notification",
@@ -39,11 +30,10 @@ exports.handler = async (event) => {
         }
       };
 
-      // Enviar el mensaje procesado
       await sns.publish(params).promise();
       console.log(`Message sent to SNS: ${messageId}`);
 
-      // Eliminar el mensaje de SQS
+      // Agregar a la lista de eliminación para SQS
       deleteParams.Entries.push({
         Id: messageId,
         ReceiptHandle: record.receiptHandle,
@@ -56,7 +46,7 @@ exports.handler = async (event) => {
       console.log("Messages deleted from SQS");
     }
   } catch (error) {
-    console.error("Error processing messages:", error.message);
+    console.error("Error processing messages:", error);
     throw error;
   }
 
