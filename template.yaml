@@ -7,6 +7,7 @@ Parameters:
     Description: Email address to receive notifications.
 
 Resources:
+  # IAM Role para Lambda
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -34,6 +35,7 @@ Resources:
                   - "sns:Publish"
                 Resource: "*"
 
+  # Recursos Lambda
   LambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -60,6 +62,7 @@ Resources:
                 const messageId = record.messageId;
                 const body = JSON.parse(record.body);
 
+                // Publicar mensaje en SNS
                 const params = {
                   Message: body.Message || "No Message",
                   Subject: body.Subject || "Alert Notification",
@@ -69,12 +72,14 @@ Resources:
                 await sns.publish(params).promise();
                 console.log(`Message sent to SNS: ${messageId}`);
 
+                // Agregar mensaje para eliminarlo de SQS
                 deleteParams.Entries.push({
                   Id: messageId,
                   ReceiptHandle: record.receiptHandle,
                 });
               }
 
+              // Eliminar mensajes de SQS
               if (deleteParams.Entries.length > 0) {
                 await sqs.deleteMessageBatch(deleteParams).promise();
                 console.log("Messages deleted from SQS");
@@ -90,7 +95,11 @@ Resources:
         Variables:
           SNS_TOPIC_ARN: !Ref SNSTopic
           SQS_QUEUE_URL: !Ref SQSQueue
+      Tags:
+        - Key: "Project"
+          Value: "Alertify-Inc"
 
+  # Events Source Mapping de SQS a Lambda
   SQSEventSourceMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
@@ -98,30 +107,43 @@ Resources:
       EventSourceArn: !GetAtt SQSQueue.Arn
       FunctionName: !GetAtt LambdaFunction.Arn
 
+  # Cola SQS
   SQSQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: "Alertify-Inc-EventQueue-Unique"
 
+  # SNS Topic
   SNSTopic:
     Type: AWS::SNS::Topic
     Properties:
       TopicName: "Alertify-Inc-CriticalEvents-Unique"
 
+  # Suscripción SNS (Email)
   MySNSSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: "email"
       Endpoint: !Ref TOEmail
       TopicArn: !Ref SNSTopic
+    Condition: !If 
+      - SubscriptionExistsCondition
+      - true
+      - false
 
+  # Condición para suscripción SNS
+  SubscriptionExistsCondition:
+    Type: "AWS::CloudFormation::CustomResource"
+    Properties:
+      ServiceToken: "arn:aws:lambda:region:account-id:function:CheckSubscriptionFunction"
+
+  # Suscripción de SNS a SQS con filtrado
   SNSQueueSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: sqs
       TopicArn: !Ref SNSTopic
       Endpoint: !GetAtt SQSQueue.Arn
-      RawMessageDelivery: true
       FilterPolicy:
         EventType:
           - Critical
