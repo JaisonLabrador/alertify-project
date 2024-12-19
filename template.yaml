@@ -7,7 +7,6 @@ Parameters:
     Description: Email address to receive notifications.
 
 Resources:
-  # IAM Role para Lambda
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -35,7 +34,6 @@ Resources:
                   - "sns:Publish"
                 Resource: "*"
 
-  # Lambda Function
   LambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -92,31 +90,24 @@ Resources:
         Variables:
           SNS_TOPIC_ARN: !Ref SNSTopic
           SQS_QUEUE_URL: !Ref SQSQueue
-      Tags:
-        - Key: "Project"
-          Value: "Alertify-Inc"
 
-  # SQS Queue
+  SQSEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt SQSQueue.Arn
+      FunctionName: !GetAtt LambdaFunction.Arn
+
   SQSQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: "Alertify-Inc-EventQueue-Unique"
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
-        maxReceiveCount: 5
 
-  DeadLetterQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: "Alertify-Inc-DLQ"
-
-  # SNS Topic
   SNSTopic:
     Type: AWS::SNS::Topic
     Properties:
       TopicName: "Alertify-Inc-CriticalEvents-Unique"
 
-  # SNS Subscription (Email)
   MySNSSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -124,38 +115,13 @@ Resources:
       Endpoint: !Ref TOEmail
       TopicArn: !Ref SNSTopic
 
-  # SNS Subscription to SQS with Filtering
   SNSQueueSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: sqs
       TopicArn: !Ref SNSTopic
       Endpoint: !GetAtt SQSQueue.Arn
+      RawMessageDelivery: true
       FilterPolicy:
         EventType:
           - Critical
-
-  # SQS Access Policy for SNS
-  SQSQueuePolicy:
-    Type: AWS::SQS::QueuePolicy
-    Properties:
-      Queues:
-        - !Ref SQSQueue
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: "Allow"
-            Principal: "*"
-            Action: "SQS:SendMessage"
-            Resource: !GetAtt SQSQueue.Arn
-            Condition:
-              ArnEquals:
-                aws:SourceArn: !Ref SNSTopic
-
-  # Event Source Mapping SQS -> Lambda
-  SQSEventSourceMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      BatchSize: 10
-      EventSourceArn: !GetAtt SQSQueue.Arn
-      FunctionName: !GetAtt LambdaFunction.Arn
