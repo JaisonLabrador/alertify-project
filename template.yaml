@@ -33,9 +33,13 @@ Resources:
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                   - "sns:Publish"
+                  - "cloudwatch:ListDashboards"  # Permisos para CloudWatch
+                  - "cloudwatch:DescribeDashboards"  # Permisos para CloudWatch
+                  - "cloudwatch:GetDashboard"  # Permisos para CloudWatch
+                  - "cloudwatch:PutDashboard"  # Permisos para CloudWatch
                 Resource: "*"
 
-  # Lambda Function
+  # Recursos Lambda
   LambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -138,11 +142,29 @@ Resources:
         EventType:
           - Critical  # Solo mensajes críticos serán procesados
 
-  # CloudWatch Dashboard
+  # Política IAM para acceso a CloudWatch Dashboards
+  CloudWatchDashboardPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "CloudWatchDashboardPolicy"
+      Roles:
+        - !Ref LambdaExecutionRole  # Usa el mismo rol de ejecución de Lambda u otro rol que necesites
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "cloudwatch:ListDashboards"
+              - "cloudwatch:DescribeDashboards"
+              - "cloudwatch:GetDashboard"
+              - "cloudwatch:PutDashboard"
+            Resource: "*"
+
+  # Creación del Dashboard en CloudWatch
   CloudWatchDashboard:
     Type: AWS::CloudWatch::Dashboard
     Properties:
-      DashboardName: "Alertify-Inc-EventDashboard"
+      DashboardName: "Alertify-Inc-Dashboard"
       DashboardBody: |
         {
           "widgets": [
@@ -150,18 +172,32 @@ Resources:
               "type": "metric",
               "x": 0,
               "y": 0,
-              "width": 24,
+              "width": 12,
               "height": 6,
               "properties": {
                 "metrics": [
-                  [ "AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "Alertify-Inc-EventQueue-Unique" ],
-                  [ "AWS/Lambda", "Invocations", "FunctionName", "Alertify-Inc-ProcessEvents-Unique" ],
-                  [ "AWS/SNS", "NumberOfMessagesPublished", "TopicName", "Alertify-Inc-CriticalEvents-Unique" ]
+                  [ "AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "Alertify-Inc-EventQueue-Unique", { "stat": "Sum" }]
                 ],
                 "period": 300,
                 "stat": "Sum",
                 "region": "us-east-1",
-                "title": "Event Processing Overview"
+                "title": "SQS Queue Message Count"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/SNS", "NumberOfMessagesPublished", "TopicName", "Alertify-Inc-CriticalEvents-Unique", { "stat": "Sum" }]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "us-east-1",
+                "title": "SNS Message Count"
               }
             }
           ]
