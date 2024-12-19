@@ -52,7 +52,7 @@ jobs:
             --zip-file fileb://lambda-code.zip \
             --region ${{ secrets.AWS_REGION }}
 
-      - name: Deploy to AWS CloudFormation
+      - name: Deploy CloudFormation Stack
         run: |
           aws cloudformation deploy \
             --template-file template.yaml \
