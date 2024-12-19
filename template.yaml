@@ -127,10 +127,13 @@ Resources:
       Endpoint: !Ref TOEmail
       TopicArn: !Ref SNSTopic
 
-  # Suscripción SNS a SQS
-  SNSToSQSSubscription:
+  # Suscripción de SNS a SQS con filtrado
+  SNSQueueSubscription:
     Type: AWS::SNS::Subscription
     Properties:
-      Protocol: "sqs"
-      Endpoint: !GetAtt SQSQueue.Arn
+      Protocol: sqs
       TopicArn: !Ref SNSTopic
+      Endpoint: !GetAtt SQSQueue.Arn
+      FilterPolicy:
+        EventType:  # Este es el atributo que usaremos para filtrar mensajes
+          - Critical  # Solo mensajes críticos serán procesados
