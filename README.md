@@ -24,7 +24,7 @@ El sistema utiliza una arquitectura basada en microservicios, diseñada para ser
   
 ### Diagrama de Arquitectura
 
-(Adjuntar aquí un diagrama visual de la arquitectura).
+![alt text](image.png)
 
 ## Requisitos
 
