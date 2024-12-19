@@ -41,6 +41,21 @@ jobs:
       - name: Install aws-sdk
         run: npm install aws-sdk
 
+      - name: Deploy CloudFormation Stack
+        run: |
+          aws cloudformation deploy \
+            --template-file template.yaml \
+            --stack-name alertify-stack \
+            --capabilities CAPABILITY_IAM \
+            --region ${{ secrets.AWS_REGION }} \
+            --parameter-overrides TOEmail=${{ secrets.TO_EMAIL }}
+
+      - name: Wait for CloudFormation Stack to stabilize
+        run: |
+          aws cloudformation wait stack-create-complete \
+            --stack-name alertify-stack \
+            --region ${{ secrets.AWS_REGION }}
+
       - name: Create a ZIP of the Lambda code
         run: |
           zip -r lambda-code.zip .
@@ -51,15 +66,6 @@ jobs:
             --function-name Alertify-Inc-ProcessEvents-Unique \
             --zip-file fileb://lambda-code.zip \
             --region ${{ secrets.AWS_REGION }}
-
-      - name: Deploy CloudFormation Stack
-        run: |
-          aws cloudformation deploy \
-            --template-file template.yaml \
-            --stack-name alertify-stack \
-            --capabilities CAPABILITY_IAM \
-            --region ${{ secrets.AWS_REGION }} \
-            --parameter-overrides TOEmail=${{ secrets.TO_EMAIL }}
 
   notify_success:
     runs-on: ubuntu-latest
