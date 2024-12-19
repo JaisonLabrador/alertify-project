@@ -35,7 +35,7 @@ Resources:
                   - "sns:Publish"
                 Resource: "*"
 
-  # Recursos Lambda
+  # Lambda Function
   LambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -62,7 +62,6 @@ Resources:
                 const messageId = record.messageId;
                 const body = JSON.parse(record.body);
 
-                // Publicar mensaje en SNS
                 const params = {
                   Message: body.Message || "No Message",
                   Subject: body.Subject || "Alert Notification",
@@ -72,14 +71,12 @@ Resources:
                 await sns.publish(params).promise();
                 console.log(`Message sent to SNS: ${messageId}`);
 
-                // Agregar mensaje para eliminarlo de SQS
                 deleteParams.Entries.push({
                   Id: messageId,
                   ReceiptHandle: record.receiptHandle,
                 });
               }
 
-              // Eliminar mensajes de SQS
               if (deleteParams.Entries.length > 0) {
                 await sqs.deleteMessageBatch(deleteParams).promise();
                 console.log("Messages deleted from SQS");
@@ -99,19 +96,19 @@ Resources:
         - Key: "Project"
           Value: "Alertify-Inc"
 
-  # Events Source Mapping de SQS a Lambda
-  SQSEventSourceMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      BatchSize: 10
-      EventSourceArn: !GetAtt SQSQueue.Arn
-      FunctionName: !GetAtt LambdaFunction.Arn
-
-  # Cola SQS
+  # SQS Queue
   SQSQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: "Alertify-Inc-EventQueue-Unique"
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
+        maxReceiveCount: 5
+
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: "Alertify-Inc-DLQ"
 
   # SNS Topic
   SNSTopic:
@@ -119,7 +116,7 @@ Resources:
     Properties:
       TopicName: "Alertify-Inc-CriticalEvents-Unique"
 
-  # Suscripción SNS (Email)
+  # SNS Subscription (Email)
   MySNSSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -127,7 +124,7 @@ Resources:
       Endpoint: !Ref TOEmail
       TopicArn: !Ref SNSTopic
 
-  # Suscripción de SNS a SQS con filtrado
+  # SNS Subscription to SQS with Filtering
   SNSQueueSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -135,5 +132,30 @@ Resources:
       TopicArn: !Ref SNSTopic
       Endpoint: !GetAtt SQSQueue.Arn
       FilterPolicy:
-        EventType:  # Este es el atributo que usaremos para filtrar mensajes
-          - Critical  # Solo mensajes críticos serán procesados
+        EventType:
+          - Critical
+
+  # SQS Access Policy for SNS
+  SQSQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref SQSQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal: "*"
+            Action: "SQS:SendMessage"
+            Resource: !GetAtt SQSQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref SNSTopic
+
+  # Event Source Mapping SQS -> Lambda
+  SQSEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt SQSQueue.Arn
+      FunctionName: !GetAtt LambdaFunction.Arn
