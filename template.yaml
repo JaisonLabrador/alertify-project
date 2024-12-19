@@ -5,6 +5,13 @@ Parameters:
   TOEmail:
     Type: String
     Description: Email address to receive notifications.
+  CreateSNSSubscription:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: "Flag to determine whether to create the SNS subscription."
 
 Resources:
   # IAM Role para Lambda
@@ -122,28 +129,28 @@ Resources:
   # Suscripción SNS (Email)
   MySNSSubscription:
     Type: AWS::SNS::Subscription
+    Condition: CreateSubscriptionCondition
     Properties:
       Protocol: "email"
       Endpoint: !Ref TOEmail
       TopicArn: !Ref SNSTopic
-    Condition: !If 
-      - SubscriptionExistsCondition
-      - true
-      - false
-
-  # Condición para suscripción SNS
-  SubscriptionExistsCondition:
-    Type: "AWS::CloudFormation::CustomResource"
-    Properties:
-      ServiceToken: "arn:aws:lambda:region:account-id:function:CheckSubscriptionFunction"
 
   # Suscripción de SNS a SQS con filtrado
   SNSQueueSubscription:
     Type: AWS::SNS::Subscription
+    Condition: CreateSubscriptionCondition
     Properties:
       Protocol: sqs
       TopicArn: !Ref SNSTopic
       Endpoint: !GetAtt SQSQueue.Arn
       FilterPolicy:
         EventType:
-          - Critical
+          - Critical  # Solo mensajes críticos serán procesados
+
+  # Condición para controlar la creación de suscripciones
+  CreateSubscriptionCondition:
+    Type: AWS::CloudFormation::Condition
+    Properties:
+      Fn::Equals:
+        - !Ref CreateSNSSubscription
+        - 'true'
