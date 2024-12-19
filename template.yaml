@@ -35,7 +35,7 @@ Resources:
                   - "sns:Publish"
                 Resource: "*"
 
-  # Recursos Lambda
+  # Recurso Lambda
   LambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -60,9 +60,9 @@ Resources:
             try {
               for (const record of event.Records || []) {
                 const messageId = record.messageId;
-                const body = JSON.parse(record.body);
 
                 // Publicar mensaje en SNS
+                const body = JSON.parse(record.body);
                 const params = {
                   Message: body.Message || "No Message",
                   Subject: body.Subject || "Alert Notification",
@@ -126,4 +126,6 @@ Resources:
       Protocol: "email"
       Endpoint: !Ref TOEmail
       TopicArn: !Ref SNSTopic
-     
+      FilterPolicy:
+        EventType:
+          - "Critical"
