@@ -35,7 +35,7 @@ Resources:
                   - "sns:Publish"
                 Resource: "*"
 
-  # Recursos Lambda
+  # Lambda Function
   LambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -137,3 +137,32 @@ Resources:
       FilterPolicy:
         EventType:
           - Critical  # Solo mensajes críticos serán procesados
+
+  # CloudWatch Dashboard
+  CloudWatchDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: "Alertify-Inc-EventDashboard"
+      DashboardBody: |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 24,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "Alertify-Inc-EventQueue-Unique" ],
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "Alertify-Inc-ProcessEvents-Unique" ],
+                  [ "AWS/SNS", "NumberOfMessagesPublished", "TopicName", "Alertify-Inc-CriticalEvents-Unique" ]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "us-east-1",
+                "title": "Event Processing Overview"
+              }
+            }
+          ]
+        }
